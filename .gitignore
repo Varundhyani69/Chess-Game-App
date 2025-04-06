@@ -16,3 +16,13 @@ client/.env.production.local
 
 # Server-specific (Node.js)
 server/node_modules/
+
+# Ignore node_modules from both client and server
+client/node_modules/
+server/node_modules/
+
+# Optional: ignore environment variables
+**/.env
+
+# Ignore log files
+*.log
