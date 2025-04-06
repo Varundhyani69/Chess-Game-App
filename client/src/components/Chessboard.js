@@ -47,7 +47,7 @@ const ChessGame = () => {
 
   const suggestMove = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/suggest-move', {
+      const response = await axios.get('https://chess-game-app-xs41.onrender.com', {
         params: { fen: chess.fen() },
       });
       const { move } = response.data;
