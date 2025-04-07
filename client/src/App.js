@@ -1,8 +1,8 @@
 import React from 'react';
-import { DndProvider } from 'react-dnd'; // Should work with v14.0.5
+import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
-import ChessGame from './components/Chessboard';
-import './styles.css';
+import { ChessGame } from './components/Chessboard';
+import './styles.css'; // Must be present
 
 function App() {
   return (

@@ -2,16 +2,23 @@ import React, { useState } from 'react';
 import Chessboard from 'chessboardjsx';
 import { Chess } from 'chess.js';
 import axios from 'axios';
+import '../styles.css'; // Correct path: up one level to src/
 
 const ChessGame = () => {
   const [chess] = useState(new Chess());
   const [position, setPosition] = useState(chess.fen());
-  const [suggestedMove, setSuggestedMove] = useState(null); // Arrow for suggested move
-  const [highlightSquares, setHighlightSquares] = useState({}); // Highlight starting square
-  const [suggestedText, setSuggestedText] = useState(''); // Plain text hint
+  const [suggestedMove, setSuggestedMove] = useState(null);
+  const [highlightSquares, setHighlightSquares] = useState({});
+  const [suggestedText, setSuggestedText] = useState('');
+  const [gameStatus, setGameStatus] = useState('');
 
   const onDrop = ({ sourceSquare, targetSquare }) => {
     try {
+      if (chess.isGameOver()) {
+        setGameStatus(checkGameOverStatus());
+        return;
+      }
+
       const move = chess.move({
         from: sourceSquare,
         to: targetSquare,
@@ -20,10 +27,15 @@ const ChessGame = () => {
 
       if (move === null) return;
       setPosition(chess.fen());
-      setSuggestedMove(null); // Clear suggestion
+      setSuggestedMove(null);
       setHighlightSquares({});
       setSuggestedText('');
-      setTimeout(() => makeRandomMove(), 500);
+
+      if (chess.isGameOver()) {
+        setGameStatus(checkGameOverStatus());
+      } else {
+        setTimeout(() => makeRandomMove(), 500);
+      }
     } catch (error) {
       console.error('Move error:', error);
     }
@@ -31,42 +43,66 @@ const ChessGame = () => {
 
   const makeRandomMove = () => {
     try {
+      if (chess.isGameOver()) {
+        setGameStatus(checkGameOverStatus());
+        return;
+      }
+
       const moves = chess.moves();
-      if (moves.length === 0 || chess.isGameOver()) return;
+      if (moves.length === 0) return;
 
       const randomMove = moves[Math.floor(Math.random() * moves.length)];
       chess.move(randomMove);
       setPosition(chess.fen());
-      setSuggestedMove(null); // Clear suggestion
+      setSuggestedMove(null);
       setHighlightSquares({});
       setSuggestedText('');
+
+      if (chess.isGameOver()) {
+        setGameStatus(checkGameOverStatus());
+      }
     } catch (error) {
       console.error('Random move error:', error);
     }
   };
 
+  const checkGameOverStatus = () => {
+    if (chess.isCheckmate()) {
+      return chess.turn() === 'w' ? 'Black wins by checkmate!' : 'White wins by checkmate!';
+    } else if (chess.isStalemate()) {
+      return 'Game ends in a stalemate!';
+    } else if (chess.isDraw()) {
+      return 'Game ends in a draw!';
+    }
+    return '';
+  };
+
   const suggestMove = async () => {
     try {
-      const response = await axios.get('https://chess-game-app-xs41.onrender.com', {
+      if (chess.isGameOver()) {
+        setGameStatus(checkGameOverStatus());
+        return;
+      }
+
+      const response = await axios.get('http://localhost:5000/suggest-move', {
         params: { fen: chess.fen() },
       });
       const { move } = response.data;
       if (move) {
-        // Set arrow
         setSuggestedMove([{ square: move.from, dest: move.to, color: '#FF0000' }]);
-        // Highlight starting square (yellow)
-        setHighlightSquares({
-          [move.from]: { backgroundColor: 'rgba(255, 255, 0, 0.4)' },
+
+        const chessTemp = new Chess(chess.fen());
+        const possibleMoves = chessTemp.moves({ square: move.from, verbose: true });
+
+        const highlightStyles = {};
+        possibleMoves.forEach((m) => {
+          highlightStyles[m.to] = { backgroundColor: 'rgba(255, 255, 0, 0.4)' };
         });
-        // Simple text hint
-        const piece = chess.get(move.from).type === 'p' ? 'pawn' : chess.get(move.from).type;
-        setSuggestedText(`Move your ${piece} from ${move.from} to ${move.to}`);
-        // Clear after 5 seconds
-        setTimeout(() => {
-          setSuggestedMove(null);
-          setHighlightSquares({});
-          setSuggestedText('');
-        }, 5000);
+        highlightStyles[move.from] = { backgroundColor: 'rgba(0, 0, 255, 0.4)' };
+        highlightStyles[move.to] = { backgroundColor: 'rgba(0, 255, 0, 0.4)' };
+
+        setHighlightSquares(highlightStyles);
+        setSuggestedText(`Move to ${move.to} (green)`);
       } else {
         alert('No moves available');
       }
@@ -76,22 +112,40 @@ const ChessGame = () => {
     }
   };
 
+  const onDragStart = ({ sourceSquare }) => {
+    if (chess.isGameOver()) return;
+
+    const chessTemp = new Chess(chess.fen());
+    const possibleMoves = chessTemp.moves({ square: sourceSquare, verbose: true });
+
+    const highlightStyles = {};
+    possibleMoves.forEach((m) => {
+      highlightStyles[m.to] = { backgroundColor: 'rgba(255, 255, 0, 0.4)' };
+    });
+    setHighlightSquares(highlightStyles);
+  };
+
+  const onDragEnd = () => {
+    if (!suggestedMove && !chess.isGameOver()) {
+      setHighlightSquares({});
+    }
+  };
+
   return (
-    <div>
+    <div className="chessboard-container">
       <Chessboard
         position={position}
         onDrop={onDrop}
         customArrows={suggestedMove}
-        squareStyles={highlightSquares} // Highlight the starting square
+        squareStyles={highlightSquares}
+        onDragStart={onDragStart}
+        onMouseOutSquare={onDragEnd}
       />
-      <button onClick={suggestMove} style={{ marginTop: '10px' }}>
-        Suggest Move
-      </button>
-      {suggestedText && (
-        <p style={{ marginTop: '10px', color: '#333' }}>{suggestedText}</p>
-      )}
+      <button onClick={suggestMove}>Suggest Move</button>
+      {suggestedText && <p>{suggestedText}</p>}
+      {gameStatus && <p className="game-status">{gameStatus}</p>}
     </div>
   );
 };
 
-export default ChessGame;
+export { ChessGame };
